@@ -9,8 +9,8 @@ const editDistance = (a, b) => {
     }
   }
 
-  let matrix = [];
 
+  let matrix = [];
   // Increment along the first column of each row
   for (let i = 0; i <= b.length; i++) {
     matrix[i] = [i];
@@ -23,13 +23,13 @@ const editDistance = (a, b) => {
   // Fill in the rest of the matrix
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i-1) == a.charAt(j-1)) {
-        matrix[i][j] = matrix[i-1][j-1];
+      if (b.charAt(i - 1) == a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
       } else {
         matrix[i][j] = Math.min(
-          matrix[i-1][j-1] + 1,   // Substitution
-          matrix[i][j-1] + 1,     // Insertion
-          matrix[i-1][j] + 1      // Deletion
+          matrix[i - 1][j - 1] + 1, // Substitution
+          matrix[i][j - 1] + 1,     // Insertion
+          matrix[i - 1][j] + 1      // Deletion
         );
       }
     }
@@ -43,47 +43,31 @@ const editDistance = (a, b) => {
   return editsNeeded / Math.max(a.length, b.length);
 };
 
+function substringDistance(string1, string2){
+  let longestCommonSubstring = 0;
+  let table = Array(string1.length + 1).fill(Array(string2.length + 1).fill(0));
 
-const substringDistance = (a, b) => {
-  let lcs = [];
-  for (let i = 0; i < a.length; i++) {
-    lcs.push([]);
-    for (let j = 0; j < b.length; j++) {
-      lcs[i].push(1);
-    }
-  }
-
-  for (let i = 1; i < a.length; i++) {
-    for (let j = 1; j < b.length; j++) {
-      if (a.charAt(i - 1) === b.charAt(j - 1)) {
-        lcs[i][j] = lcs[i - 1][j - 1] + 1;
-      } else {
-        lcs[i][j] = 0;
+  for(let i = 0; i < string1.length; i++) {
+    for(let j = 0; j < string2.length; j++) {
+      if(string1[i] === string2[j]) {
+        const substringLength = table[i][j] + 1;
+        table[i + 1][j + 1] = substringLength;
+        // Update the result if it is a new maximum
+        if(substringLength > longestCommonSubstring){
+          longestCommonSubstring = substringLength;
+        }
       }
-    }
-  }
-
-  let result = -1;
-  for (let i = 0; i < a.length; i++) {
-    for (let j = 0; j < b.length; j++) {
-      if (lcs[i][j] > result) {
-        result = lcs[i][j];
-      }    
     }
   }
 
   /**
    * Normalize so that 1 means one string contains the other and
-   * that 0 means they share nothing in common.
+   * that 0 means they share nothing in common. Then, subtract from 1
+   * so that 0 reflects no difference and 1 reflects max distance.
    */
-  result = result / Math.max(a.length, b.length);
-
-  /**
-   * Because we want 1.0 to be the maximum difference, subtract the
-   * result from 1.0 so that 0 reflects the most similarity.
-   */
-  return 1.0 - result;
-};
+  const amountShared = longestCommonSubstring / Math.max(string1.length, string2.length);
+  return 1.0 - amountShared;
+}
 
 const mean = numbers => numbers.reduce(
   (sum, val) => sum + val
