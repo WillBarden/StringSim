@@ -1,4 +1,15 @@
 "use strict";
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -35,58 +46,94 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-var mockapi = require('./me-mock-api');
+var me_mock_api_1 = require("./me-mock-api");
+var moment_1 = __importDefault(require("moment"));
+var lodash_1 = require("lodash");
+;
+;
+var recordEquality = function (record1, record2) {
+    return record1.contractId === record2.contractId &&
+        record1.memberId === record2.memberId &&
+        record1.efDat === record2.efDat;
+};
+var searchEquality = function (criteria, record) {
+    return record.contractId.includes(criteria.contractId) &&
+        (!criteria.memberId || record.memberId.includes(criteria.memberId)) &&
+        (!criteria.effectiveDate || moment_1.default(criteria.effectiveDate).isSameOrBefore(moment_1.default(record.efDat)));
+};
+var initRecord = function (amountPaid, contractId, memberId, efDat, isVioded, vendorId, enDat) { return ({ amountPaid: amountPaid, contractId: contractId, memberId: memberId, efDat: efDat, enDat: enDat, isVioded: isVioded, vendorId: vendorId }); };
+var printRes = function (msg, results) {
+    if (!results) {
+        return function (res) { return printRes(msg, res); };
+    }
+    console.log(msg + ': ');
+    console.log(results);
+};
+var printNewlines = function (n) { return lodash_1.times(n, function () { return console.log(); }); };
 exports.main = function () { return __awaiter(void 0, void 0, void 0, function () {
-    var api, newRecord;
+    var initialValues, api, record, criteria;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                api = new mockapi.MockApi([
-                    { amount: 323.32, isViodFlag: false, contractId: '234724234', memberId: '01', efDate: new Date(2008, 4, 1), enDate: null },
-                    { amount: 33.32, isViodFlag: false, contractId: '523423465', memberId: '03', efDate: new Date(2014, 8, 8), enDate: new Date(2016, 4, 4) },
-                    { amount: 88.32, isViodFlag: true, contractId: '234892348', memberId: '02', efDate: new Date(2016, 1, 1), enDate: null },
-                ], function (recordA, recordB) { return recordA.contractId + recordA.memberId === recordB.contractId + recordB.memberId; }, function (searchCriteria, record) { return record.contractId.includes(searchCriteria.contractId) &&
-                    (!searchCriteria.memberId || record.memberId.includes(searchCriteria.memberId)); });
-                newRecord = { amount: 0.0, isViodFlag: false, contractId: '9087234322', memberId: '02', efDate: new Date(2015, 1, 1), enDate: null };
-                return [4 /*yield*/, api.create(newRecord).then().catch()];
+                initialValues = [
+                    initRecord(0, '678', '01', new Date(2004, 11, 2), false, 'UFR'),
+                    initRecord(2, '678', '02', new Date(2008, 3, 2), false, 'UFR', new Date(2014, 4, 5)),
+                    initRecord(7.32, '645', '01', new Date(2006, 5, 15), true, 'YXU'),
+                    initRecord(4.54, '645', '02', new Date(2006, 2, 15), true, 'YXU'),
+                    initRecord(8, '645', '03', new Date(2007, 1, 18), false, 'YXU', new Date(2008, 2, 11)),
+                ];
+                api = new me_mock_api_1.MockApi(initialValues, recordEquality, searchEquality);
+                printRes('All Records', api.sync_search());
+                printNewlines(3);
+                criteria = {
+                    contractId: '645',
+                    effectiveDate: new Date(2006, 1, 1)
+                };
+                printRes('Searching for records with criteria', criteria);
+                printRes('Results', api.sync_search(criteria));
+                // Create a new record to add and then perform operations on
+                record = initRecord(10, '666', '01', new Date(1995, 12, 24), false, 'WFB');
+                // This will get the record were mutating when we search for it after operations
+                criteria = {
+                    contractId: record.contractId,
+                    memberId: record.memberId,
+                    effectiveDate: record.efDat
+                };
+                printNewlines(3);
+                printRes('Search results for record before it was added', api.sync_search(criteria));
+                printRes('Record to add', record);
+                return [4 /*yield*/, api.add(record)];
             case 1:
                 _a.sent();
-                console.log();
-                console.log('creating a new record:');
-                return [4 /*yield*/, api.search().then(function (results) { return console.log(results[3]); }).catch()];
+                printRes('New record', api.sync_search(criteria));
+                printNewlines(3);
+                printRes('Record to edit by changing "amountPaid" to 12.00', record);
+                return [4 /*yield*/, api.edit(__assign(__assign({}, record), { amountPaid: 12 }))];
             case 2:
                 _a.sent();
-                newRecord.amount = 10.0;
-                return [4 /*yield*/, api.edit(newRecord).then().catch()];
+                printRes('Edited record', api.sync_search(criteria));
+                printNewlines(3);
+                printRes('Record to void', record);
+                return [4 /*yield*/, api.void(record)];
             case 3:
                 _a.sent();
-                console.log();
-                console.log("editing the created records amount to be " + newRecord.amount + ":");
-                return [4 /*yield*/, api.search().then(function (results) { return console.log(results[3]); }).catch()];
+                printRes('Voided record', api.sync_search(criteria));
+                printNewlines(3);
+                printRes('Record to end-date', record);
+                return [4 /*yield*/, api.endDate(record)];
             case 4:
                 _a.sent();
-                return [4 /*yield*/, api.void(newRecord).then().catch()];
+                printRes('End-dated record', api.sync_search(criteria));
+                printNewlines(3);
+                printRes('Record to delete', record);
+                return [4 /*yield*/, api.delete(record)];
             case 5:
                 _a.sent();
-                console.log();
-                console.log('voiding the created record:');
-                return [4 /*yield*/, api.search().then(function (results) { return console.log(results[3]); }).catch()];
-            case 6:
-                _a.sent();
-                return [4 /*yield*/, api.endDate(newRecord).then().catch()];
-            case 7:
-                _a.sent();
-                console.log();
-                console.log('end dating the created record:');
-                return [4 /*yield*/, api.search().then(function (results) { return console.log(results[3]); }).catch()];
-            case 8:
-                _a.sent();
-                console.log();
-                console.log('searching for records with a contract ID with "72" in it:');
-                return [4 /*yield*/, api.search({ contractId: '72' }).then(console.log).catch()];
-            case 9:
-                _a.sent();
+                printRes('Deleted record (This should be blank)', api.sync_search(criteria));
                 return [2 /*return*/];
         }
     });

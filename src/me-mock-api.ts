@@ -1,4 +1,4 @@
-import { isEqual, some, keys, every } from 'lodash';
+import { isEqual, some, remove, keys, isString, isBoolean, isNil, isEmpty } from 'lodash';
 import { mostSimilar } from './diff';
 
 export class MockApi<RecordType, SearchCriteriaType = object> {
@@ -8,11 +8,15 @@ export class MockApi<RecordType, SearchCriteriaType = object> {
     = isEqual;
   criteriaEqualityFn: (criteria: SearchCriteriaType, record: RecordType) => boolean
     = (criteria: SearchCriteriaType, record: RecordType) => true;
+  private isVoidBoolean: boolean;
+  private isEndDateADate: boolean;
 
   constructor(
     initialValues: RecordType[],
     valueEqualityFn?: (record1: RecordType, record2: RecordType) => boolean,
-    criteriaEqualityFn?: (criteria: SearchCriteriaType, record: RecordType) => boolean
+    criteriaEqualityFn?: (criteria: SearchCriteriaType, record: RecordType) => boolean,
+    isVoidBoolean: boolean = true,
+    isEndDateADate: boolean = true
   ) {
     this.values = initialValues;
     if (valueEqualityFn) {
@@ -21,22 +25,22 @@ export class MockApi<RecordType, SearchCriteriaType = object> {
     if (criteriaEqualityFn) {
       this.criteriaEqualityFn = criteriaEqualityFn;
     }
+    this.isVoidBoolean = isVoidBoolean;
+    this.isEndDateADate = isEndDateADate;
   }
 
-  async getAllRecords(): Promise<RecordType[]> {
-    return Promise.resolve(this.values);
-  }
-
-  async searchRecords(searchCriteria?: SearchCriteriaType): Promise<RecordType[]> {
+  sync_search(searchCriteria?: SearchCriteriaType): RecordType[] {
     if (!searchCriteria) {
-      return this.getAllRecords();
+      return this.values;
     }
-    return Promise.resolve(
-      this.values.filter(value => this.criteriaEqualityFn(searchCriteria, value))
-    );
+    return this.values.filter(value => this.criteriaEqualityFn(searchCriteria, value));
   }
 
-  async createRecord(newRecord: RecordType): Promise<RecordType> {
+  async search(searchCriteria?: SearchCriteriaType): Promise<RecordType[]> {
+    return Promise.resolve(this.sync_search(searchCriteria));
+  }
+
+  async add(newRecord: RecordType): Promise<RecordType> {
     if (some(this.values, (value: RecordType) => this.valueEqualityFn(value, newRecord))) {
       return Promise.reject('Cannot create a record that already exists');
     }
@@ -44,8 +48,8 @@ export class MockApi<RecordType, SearchCriteriaType = object> {
     return Promise.resolve(newRecord);
   }
 
-  async editRecord(editedRecord: RecordType): Promise<RecordType> {
-    for (const i in this.values) {
+  async edit(editedRecord: RecordType): Promise<RecordType> {
+    for (let i = 0; i < this.values.length; i++) {
       if (this.valueEqualityFn(this.values[i], editedRecord)) {
         this.values[i] = editedRecord;
         return Promise.resolve(editedRecord);
@@ -54,14 +58,24 @@ export class MockApi<RecordType, SearchCriteriaType = object> {
     return Promise.reject('Could not find the requested record to edit');
   }
 
+  async delete(deletedRecord: RecordType): Promise<RecordType> {
+    for (let i = 0; i < this.values.length; i++) {
+      if (this.valueEqualityFn(this.values[i], deletedRecord)) {
+        this.values.splice(i, 1);
+        return Promise.resolve(deletedRecord);
+      }
+    }
+    return Promise.reject('Could not find the requested record to delete');
+  }
+
   getVoidProperty(record: RecordType): string | null {
     return mostSimilar(
       ['isVoid', 'void', 'voidFlag'],
-      Object.keys(record)
+      keys(record)
     );
   }
 
-  async voidRecord(voidedRecord: RecordType): Promise<RecordType> {
+  async void(voidedRecord: RecordType): Promise<RecordType> {
     for (const i in this.values) {
       if (this.valueEqualityFn(this.values[i], voidedRecord)) {
         const voidProperty = this.getVoidProperty(this.values[i]);
@@ -70,7 +84,13 @@ export class MockApi<RecordType, SearchCriteriaType = object> {
         }
 
         const voidedRecordNewValue = voidedRecord as any;
-        voidedRecordNewValue[voidProperty] = true;
+        if (
+          (isBoolean(voidedRecordNewValue[voidProperty]) && voidedRecordNewValue[voidProperty] === true) ||
+          (isString(voidedRecordNewValue[voidProperty]) && voidedRecordNewValue[voidProperty] === 'Y')
+        ) {
+          return Promise.reject('Can not void a record that has already been voided');
+        }
+        voidedRecordNewValue[voidProperty] = this.isVoidBoolean ? true : 'Y';
         this.values[i] = voidedRecordNewValue as RecordType;
         return Promise.resolve(this.values[i]);
       }
@@ -81,20 +101,29 @@ export class MockApi<RecordType, SearchCriteriaType = object> {
   getEndDateProperty(record: RecordType): string | null {
     return mostSimilar(
       ['end', 'endDate'],
-      Object.keys(record)
+      keys(record)
     );
   }
 
-  async endDateRecord(endDatedRecord: RecordType): Promise<RecordType> {
+  async endDate(endDatedRecord: RecordType, isDate: boolean = true, endDate?: Date): Promise<RecordType> {
+    if (isNil(endDate)) {
+      // Not done using a default param so that it calculates everytime
+      endDate = new Date();
+    }
+
     for (const i in this.values) {
       if (this.valueEqualityFn(this.values[i], endDatedRecord)) {
-        const endDateProperty = this.getVoidProperty(this.values[i]);
+        const endDateProperty = this.getEndDateProperty(this.values[i]);
         if (!endDateProperty) {
           return Promise.reject('Could not automatically infer the end-date property of the record');
         }
 
         const endDatedRecordNewValue = endDatedRecord as any;
-        endDatedRecordNewValue[endDateProperty] = true;
+        if (!isEmpty(endDatedRecordNewValue[endDateProperty])) {
+          return Promise.reject('Can not end-date a record that has an end-date already');
+        }
+        endDatedRecordNewValue[endDateProperty] = this.isEndDateADate ?
+          endDate : `${endDate.getFullYear()}-${endDate.getMonth()}-${endDate.getDate()}`;
         this.values[i] = endDatedRecordNewValue as RecordType;
         return Promise.resolve(this.values[i]);
       }

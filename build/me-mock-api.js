@@ -39,7 +39,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var lodash_1 = require("lodash");
 var diff_1 = require("./diff");
 var MockApi = /** @class */ (function () {
-    function MockApi(initialValues, valueEqualityFn, criteriaEqualityFn) {
+    function MockApi(initialValues, valueEqualityFn, criteriaEqualityFn, isVoidBoolean, isEndDateADate) {
+        if (isVoidBoolean === void 0) { isVoidBoolean = true; }
+        if (isEndDateADate === void 0) { isEndDateADate = true; }
         this.values = [];
         this.valueEqualityFn = lodash_1.isEqual;
         this.criteriaEqualityFn = function (criteria, record) { return true; };
@@ -50,26 +52,24 @@ var MockApi = /** @class */ (function () {
         if (criteriaEqualityFn) {
             this.criteriaEqualityFn = criteriaEqualityFn;
         }
+        this.isVoidBoolean = isVoidBoolean;
+        this.isEndDateADate = isEndDateADate;
     }
-    MockApi.prototype.getAllRecords = function () {
+    MockApi.prototype.sync_search = function (searchCriteria) {
+        var _this = this;
+        if (!searchCriteria) {
+            return this.values;
+        }
+        return this.values.filter(function (value) { return _this.criteriaEqualityFn(searchCriteria, value); });
+    };
+    MockApi.prototype.search = function (searchCriteria) {
         return __awaiter(this, void 0, void 0, function () {
             return __generator(this, function (_a) {
-                return [2 /*return*/, Promise.resolve(this.values)];
+                return [2 /*return*/, Promise.resolve(this.sync_search(searchCriteria))];
             });
         });
     };
-    MockApi.prototype.searchRecords = function (searchCriteria) {
-        return __awaiter(this, void 0, void 0, function () {
-            var _this = this;
-            return __generator(this, function (_a) {
-                if (!searchCriteria) {
-                    return [2 /*return*/, this.getAllRecords()];
-                }
-                return [2 /*return*/, Promise.resolve(this.values.filter(function (value) { return _this.criteriaEqualityFn(searchCriteria, value); }))];
-            });
-        });
-    };
-    MockApi.prototype.createRecord = function (newRecord) {
+    MockApi.prototype.add = function (newRecord) {
         return __awaiter(this, void 0, void 0, function () {
             var _this = this;
             return __generator(this, function (_a) {
@@ -81,11 +81,11 @@ var MockApi = /** @class */ (function () {
             });
         });
     };
-    MockApi.prototype.editRecord = function (editedRecord) {
+    MockApi.prototype.edit = function (editedRecord) {
         return __awaiter(this, void 0, void 0, function () {
             var i;
             return __generator(this, function (_a) {
-                for (i in this.values) {
+                for (i = 0; i < this.values.length; i++) {
                     if (this.valueEqualityFn(this.values[i], editedRecord)) {
                         this.values[i] = editedRecord;
                         return [2 /*return*/, Promise.resolve(editedRecord)];
@@ -95,10 +95,24 @@ var MockApi = /** @class */ (function () {
             });
         });
     };
-    MockApi.prototype.getVoidProperty = function (record) {
-        return diff_1.mostSimilar(['isVoid', 'void', 'voidFlag'], Object.keys(record));
+    MockApi.prototype.delete = function (deletedRecord) {
+        return __awaiter(this, void 0, void 0, function () {
+            var i;
+            return __generator(this, function (_a) {
+                for (i = 0; i < this.values.length; i++) {
+                    if (this.valueEqualityFn(this.values[i], deletedRecord)) {
+                        this.values.splice(i, 1);
+                        return [2 /*return*/, Promise.resolve(deletedRecord)];
+                    }
+                }
+                return [2 /*return*/, Promise.reject('Could not find the requested record to delete')];
+            });
+        });
     };
-    MockApi.prototype.voidRecord = function (voidedRecord) {
+    MockApi.prototype.getVoidProperty = function (record) {
+        return diff_1.mostSimilar(['isVoid', 'void', 'voidFlag'], lodash_1.keys(record));
+    };
+    MockApi.prototype.void = function (voidedRecord) {
         return __awaiter(this, void 0, void 0, function () {
             var i, voidProperty, voidedRecordNewValue;
             return __generator(this, function (_a) {
@@ -109,7 +123,11 @@ var MockApi = /** @class */ (function () {
                             return [2 /*return*/, Promise.reject('Could not automatically infer the void property of the record')];
                         }
                         voidedRecordNewValue = voidedRecord;
-                        voidedRecordNewValue[voidProperty] = true;
+                        if ((lodash_1.isBoolean(voidedRecordNewValue[voidProperty]) && voidedRecordNewValue[voidProperty] === true) ||
+                            (lodash_1.isString(voidedRecordNewValue[voidProperty]) && voidedRecordNewValue[voidProperty] === 'Y')) {
+                            return [2 /*return*/, Promise.reject('Can not void a record that has already been voided')];
+                        }
+                        voidedRecordNewValue[voidProperty] = this.isVoidBoolean ? true : 'Y';
                         this.values[i] = voidedRecordNewValue;
                         return [2 /*return*/, Promise.resolve(this.values[i])];
                     }
@@ -119,20 +137,29 @@ var MockApi = /** @class */ (function () {
         });
     };
     MockApi.prototype.getEndDateProperty = function (record) {
-        return diff_1.mostSimilar(['end', 'endDate'], Object.keys(record));
+        return diff_1.mostSimilar(['end', 'endDate'], lodash_1.keys(record));
     };
-    MockApi.prototype.endDateRecord = function (endDatedRecord) {
+    MockApi.prototype.endDate = function (endDatedRecord, isDate, endDate) {
+        if (isDate === void 0) { isDate = true; }
         return __awaiter(this, void 0, void 0, function () {
             var i, endDateProperty, endDatedRecordNewValue;
             return __generator(this, function (_a) {
+                if (lodash_1.isNil(endDate)) {
+                    // Not done using a default param so that it calculates everytime
+                    endDate = new Date();
+                }
                 for (i in this.values) {
                     if (this.valueEqualityFn(this.values[i], endDatedRecord)) {
-                        endDateProperty = this.getVoidProperty(this.values[i]);
+                        endDateProperty = this.getEndDateProperty(this.values[i]);
                         if (!endDateProperty) {
                             return [2 /*return*/, Promise.reject('Could not automatically infer the end-date property of the record')];
                         }
                         endDatedRecordNewValue = endDatedRecord;
-                        endDatedRecordNewValue[endDateProperty] = true;
+                        if (!lodash_1.isEmpty(endDatedRecordNewValue[endDateProperty])) {
+                            return [2 /*return*/, Promise.reject('Can not end-date a record that has an end-date already')];
+                        }
+                        endDatedRecordNewValue[endDateProperty] = this.isEndDateADate ?
+                            endDate : endDate.getFullYear() + "-" + endDate.getMonth() + "-" + endDate.getDate();
                         this.values[i] = endDatedRecordNewValue;
                         return [2 /*return*/, Promise.resolve(this.values[i])];
                     }
